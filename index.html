@@ -1,0 +1,847 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Page Replacement Algorithm Simulator</title>
+    <link rel="stylesheet" href="css/styles.css">
+    <!-- KaTeX for High-Resolution Mathematical Formula Rendering -->
+    <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/katex@0.16.9/dist/katex.min.css">
+    <script defer src="https://cdn.jsdelivr.net/npm/katex@0.16.9/dist/katex.min.js"></script>
+    <script defer src="https://cdn.jsdelivr.net/npm/katex@0.16.9/dist/contrib/auto-render.min.js"></script>
+    <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
+</head>
+<body>
+    <div class="app-wrapper">
+        <!-- Compact Project Header -->
+        <header class="app-header">
+            <div class="header-brand">
+                <h1 class="app-title">Page Replacement Simulator</h1>
+                <span class="app-subtitle">OS Memory Management &bull; Demand Paging Lab (FIFO, OPT, LRU, Clock, LFU, ARC, ML-Based)</span>
+            </div>
+            <div class="header-actions">
+                <nav class="header-nav">
+                    <button class="nav-btn active" onclick="switchMainTab('tabSimulator')">Simulation</button>
+                    <button class="nav-btn" onclick="switchMainTab('tabComparison')">Comparison</button>
+                    <button class="nav-btn" onclick="switchMainTab('tabBelady')">B&eacute;l&aacute;dy's Anomaly</button>
+                    <button class="nav-btn" onclick="switchMainTab('tabTheory')">Reference Notes</button>
+                </nav>
+                <button id="themeToggleBtn" class="btn btn-sm btn-ghost" onclick="toggleTheme()" title="Toggle theme">Theme: Light</button>
+            </div>
+        </header>
+
+        <!-- MAIN TAB 1: SIMULATOR WORKBENCH -->
+        <main id="tabSimulator" class="main-tab-content active">
+            <!-- Parameter Configuration Panel -->
+            <section class="panel config-panel">
+                <div class="panel-heading">
+                    <h2>Simulation Parameters</h2>
+                </div>
+
+                <div class="config-grid">
+                    <!-- Reference Sequence Input -->
+                    <div class="config-row-full">
+                        <label for="quickRefString" class="form-label">Page Reference Sequence:</label>
+                        <div class="input-action-group">
+                            <input type="text" id="quickRefString" class="form-input mono" placeholder="e.g. 7, 0, 1, 2, 0, 3, 0, 4, 2, 3, 0, 3, 2, 1, 2, 0, 1, 7, 0, 1" value="7, 0, 1, 2, 0, 3, 0, 4, 2, 3, 0, 3, 2, 1, 2, 0, 1, 7, 0, 1">
+                            <button class="btn btn-secondary" onclick="loadFromQuickInput()">Apply Sequence</button>
+                            <button class="btn btn-secondary" onclick="generateRandomReference()">Generate Random</button>
+                        </div>
+                    </div>
+
+                    <!-- Presets Selection -->
+                    <div class="config-row-full preset-row">
+                        <span class="preset-label">Standard Reference Presets:</span>
+                        <div class="preset-buttons">
+                            <button class="btn btn-sm btn-preset" onclick="loadPreset('textbook')">Silberschatz Standard (3 frames)</button>
+                            <button class="btn btn-sm btn-preset" onclick="loadPreset('belady')">B&eacute;l&aacute;dy Sequence (3 frames)</button>
+                            <button class="btn btn-sm btn-preset" onclick="loadPreset('locality')">High Locality (3 frames)</button>
+                            <button class="btn btn-sm btn-preset" onclick="loadPreset('loop')">Cyclic Loop (3 frames)</button>
+                        </div>
+                    </div>
+
+                    <!-- Frame Count & Algorithm Selection -->
+                    <div class="config-control-row">
+                        <div class="form-field">
+                            <label for="frameCount" class="form-label">Physical Memory Frames:</label>
+                            <input type="number" id="frameCount" class="form-input" min="1" max="10" value="3">
+                            <span class="field-hint">Allocated page frames (1 &ndash; 10)</span>
+                        </div>
+                        <div class="form-field flex-grow">
+                            <label for="algorithmSelect" class="form-label">Replacement Algorithm:</label>
+                            <select id="algorithmSelect" class="form-select">
+                                <option value="fifo">FIFO (First-In, First-Out)</option>
+                                <option value="optimal">Optimal (B&eacute;l&aacute;dy's MIN)</option>
+                                <option value="lru">LRU (Least Recently Used)</option>
+                                <option value="clock">Clock (Second-Chance)</option>
+                                <option value="lfu">LFU (Least Frequently Used)</option>
+                                <option value="arc">ARC (Adaptive Replacement Cache)</option>
+                                <option value="ml">ML-Based (Learned Replacement)</option>
+                            </select>
+                        </div>
+                    </div>
+                </div>
+
+                <!-- Collapsible Step Table Editor -->
+                <details class="ref-table-details">
+                    <summary class="details-summary">Manual Step-by-Step Sequence Editor</summary>
+                    <div class="table-scroll-container">
+                        <table id="referenceTable" class="data-table">
+                            <thead>
+                                <tr>
+                                    <th style="width: 80px;">Step</th>
+                                    <th>Page Reference</th>
+                                    <th style="width: 100px;">Action</th>
+                                </tr>
+                            </thead>
+                            <tbody id="referenceTableBody">
+                                <!-- Populated dynamically -->
+                            </tbody>
+                        </table>
+                    </div>
+                    <div class="table-controls">
+                        <button class="btn btn-sm btn-secondary" onclick="addPageReference()">+ Add Page</button>
+                        <button class="btn btn-sm btn-ghost text-danger" onclick="resetTable()">Clear Sequence</button>
+                    </div>
+                </details>
+
+                <div id="inputError" class="alert-banner alert-danger" style="display: none;"></div>
+
+                <!-- Primary Action Toolbar -->
+                <div class="action-toolbar">
+                    <button class="btn btn-primary" onclick="runSimulation()">Run Simulation</button>
+                    <button class="btn btn-secondary" onclick="compareAlgorithms()">Compare All Algorithms</button>
+                    <button class="btn btn-secondary" onclick="runBeladyLab()">B&eacute;l&aacute;dy Anomaly Experiment</button>
+                </div>
+            </section>
+
+            <!-- Results & Visualization Stage -->
+            <section class="panel results-panel" id="resultsSection" style="display: none;">
+                <div class="panel-heading results-heading">
+                    <div>
+                        <h2>Simulation Output: <span id="currentAlgoTitle" class="algo-title-highlight">FIFO</span></h2>
+                        <span id="frameConfigBadge" class="sub-badge">3 Frames</span>
+                    </div>
+                </div>
+
+                <!-- Concise Metrics Strip -->
+                <div class="metrics-strip">
+                    <div class="metric-item">
+                        <span class="metric-label">Page References</span>
+                        <span class="metric-value mono" id="totalRefs">-</span>
+                    </div>
+                    <div class="metric-item">
+                        <span class="metric-label">Page Faults</span>
+                        <span class="metric-value mono text-fault" id="totalFaults">-</span>
+                    </div>
+                    <div class="metric-item">
+                        <span class="metric-label">Page Hits</span>
+                        <span class="metric-value mono text-hit" id="totalHits">-</span>
+                    </div>
+                    <div class="metric-item">
+                        <span class="metric-label">Hit Ratio</span>
+                        <span class="metric-value mono" id="hitRatio">-</span>
+                    </div>
+                    <div class="metric-item">
+                        <span class="metric-label">Fault Ratio</span>
+                        <span class="metric-value mono" id="faultRatio">-</span>
+                    </div>
+                </div>
+
+                <!-- Step Playback Stage -->
+                <div class="playback-container">
+                    <div class="playback-toolbar">
+                        <div class="playback-buttons">
+                            <button id="btnPrevStep" class="btn btn-sm btn-secondary" onclick="prevStep()" disabled>Step Back</button>
+                            <button id="btnStartVis" class="btn btn-sm btn-primary" onclick="startVisualization()">Play</button>
+                            <button id="btnPauseVis" class="btn btn-sm btn-secondary" onclick="pauseVisualization()" disabled>Pause</button>
+                            <button id="btnNextStep" class="btn btn-sm btn-secondary" onclick="nextStep()" disabled>Step Forward</button>
+                            <button id="btnResetVis" class="btn btn-sm btn-ghost" onclick="resetVisualization()">Reset</button>
+                        </div>
+                        <div class="playback-status">
+                            <span id="stepCounterBadge" class="status-counter mono">Step: - / -</span>
+                            <div class="speed-control-wrapper">
+                                <label for="visSpeedSelect" class="speed-label">Speed:</label>
+                                <select id="visSpeedSelect" class="form-select form-select-sm" onchange="updateVisSpeed(this.value)">
+                                    <option value="2000">Slow (2.0s)</option>
+                                    <option value="1200" selected>Normal (1.2s)</option>
+                                    <option value="600">Fast (0.6s)</option>
+                                </select>
+                            </div>
+                        </div>
+                    </div>
+
+                    <!-- Technical Decision Inspector -->
+                    <div class="decision-inspector" id="visExplanationCard">
+                        <div class="decision-meta-row">
+                            <span class="status-tag tag-neutral" id="decisionBadge">READY</span>
+                            <span class="decision-ref-text mono" id="decisionPageText">Playback ready</span>
+                        </div>
+                        <p class="decision-rationale" id="visExplanationText">Step through to observe memory frame allocation and eviction decisions.</p>
+                        
+                        <!-- Internal State Inspector (Queue / Stack / Lookahead) -->
+                        <div class="state-inspector" id="stateInspector" style="display: none;">
+                            <span class="inspector-label" id="inspectorLabel">Data Structure State:</span>
+                            <div class="inspector-chips" id="inspectorContent"></div>
+                        </div>
+                    </div>
+
+                    <!-- Matrix Legend -->
+                    <div class="matrix-legend">
+                        <span class="legend-entry"><span class="legend-swatch swatch-hit"></span> Page Hit</span>
+                        <span class="legend-entry"><span class="legend-swatch swatch-allocated"></span> Empty Frame Allocation</span>
+                        <span class="legend-entry"><span class="legend-swatch swatch-evicted"></span> Page Fault &amp; Eviction</span>
+                    </div>
+
+                    <!-- Horizontal Memory Allocation Matrix -->
+                    <div class="matrix-scroll-wrapper">
+                        <div class="matrix-grid" id="classroomTable">
+                            <!-- Injected dynamically -->
+                        </div>
+                    </div>
+                </div>
+            </section>
+        </main>
+
+        <!-- MAIN TAB 2: ALGORITHM COMPARISON -->
+        <main id="tabComparison" class="main-tab-content">
+            <section class="panel">
+                <div class="panel-heading">
+                    <h2>Algorithm Performance Comparison</h2>
+                    <p class="section-lead">Comparative analysis of FIFO, LRU, and Optimal on the identical reference sequence and physical frame allocation.</p>
+                </div>
+
+                <div class="summary-cards-grid" id="comparisonCardsGrid">
+                    <!-- Populated dynamically -->
+                </div>
+
+                <div class="table-scroll-container">
+                    <table class="data-table" id="comparisonTable">
+                        <thead>
+                            <tr>
+                                <th>Algorithm</th>
+                                <th>Frames</th>
+                                <th>References</th>
+                                <th>Page Faults</th>
+                                <th>Page Hits</th>
+                                <th>Hit Ratio</th>
+                                <th>Fault Ratio</th>
+                                <th>Evaluation Note</th>
+                            </tr>
+                        </thead>
+                        <tbody id="comparisonTableBody"></tbody>
+                    </table>
+                </div>
+
+                <div class="chart-wrapper">
+                    <canvas id="comparisonChart"></canvas>
+                </div>
+            </section>
+        </main>
+
+        <!-- MAIN TAB 3: BÉLÁDY'S ANOMALY LAB -->
+        <main id="tabBelady" class="main-tab-content">
+            <section class="panel">
+                <div class="panel-heading">
+                    <h2>B&eacute;l&aacute;dy's Anomaly Laboratory Case Study</h2>
+                    <p class="section-lead">
+                        Investigation of non-monotonic page fault behavior where increasing allocated physical memory frames causes an increase in page faults under FIFO.
+                    </p>
+                </div>
+
+                <div class="case-study-card">
+                    <h3>Theoretical Context</h3>
+                    <p>
+                        In 1969, L&aacute;szl&oacute; B&eacute;l&aacute;dy proved that FIFO does not satisfy the <strong>subset inclusion condition</strong> ($M_t(m) \subseteq M_t(m+1)$) required of <em>Stack Algorithms</em>.
+                        Because FIFO evicts the page that entered memory earliest regardless of future reuse, an extra frame can reorder evictions such that a page needed immediately in the future is evicted prematurely.
+                    </p>
+
+                    <div class="action-toolbar" style="margin-top: 15px;">
+                        <button class="btn btn-primary" onclick="runBeladyExperiment()">Run B&eacute;l&aacute;dy Experiment (3 vs 4 Frames)</button>
+                    </div>
+                </div>
+
+                <div id="beladyResultsCard" style="display: none; margin-top: 20px;">
+                    <div class="belady-split-summary">
+                        <div class="belady-summary-box">
+                            <span class="box-title">FIFO with 3 Frames</span>
+                            <span class="box-value mono" id="beladyFaultsA">9 Faults</span>
+                            <span class="box-sub">3 Hits (25.0% Hit Ratio)</span>
+                        </div>
+                        <div class="belady-summary-divider">&rarr;</div>
+                        <div class="belady-summary-box alert-anomaly">
+                            <span class="box-title">FIFO with 4 Frames</span>
+                            <span class="box-value mono text-fault" id="beladyFaultsB">10 Faults</span>
+                            <span class="box-sub">2 Hits (16.7% Hit Ratio) &bull; +1 Fault</span>
+                        </div>
+                    </div>
+
+                    <div class="alert-banner alert-warning" id="beladyVerdictText" style="margin: 20px 0;">
+                        <!-- Injected dynamically -->
+                    </div>
+
+                    <div class="belady-traces-wrapper">
+                        <h3>Execution Matrix Comparison</h3>
+                        <p class="section-lead" style="margin-bottom: 15px;">Observe steps $t=10$ and $t=11$ where the 4-frame allocation experiences an eviction that does not occur in the 3-frame allocation:</p>
+                        
+                        <div class="matrix-trace-block">
+                            <span class="trace-label">Trace A: 3 Physical Frames (9 Faults)</span>
+                            <div class="matrix-scroll-wrapper">
+                                <div class="matrix-grid" id="beladyTableA"></div>
+                            </div>
+                        </div>
+
+                        <div class="matrix-trace-block" style="margin-top: 20px;">
+                            <span class="trace-label">Trace B: 4 Physical Frames (10 Faults)</span>
+                            <div class="matrix-scroll-wrapper">
+                                <div class="matrix-grid" id="beladyTableB"></div>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+            </section>
+        </main>
+
+        <!-- MAIN TAB 4: EDUCATIONAL REFERENCE NOTES -->
+        <main id="tabTheory" class="main-tab-content">
+            <section class="panel">
+                <div class="panel-heading">
+                    <h2>Operating Systems Theory &bull; Page Replacement</h2>
+                    <p class="section-lead">Reference notes on virtual memory architecture, replacement heuristics, stack algorithms, and performance calculations.</p>
+                </div>
+
+                <!-- Theory Sub-Navigation -->
+                <nav class="subnav-bar">
+                    <button class="subnav-btn active" onclick="switchTheoryTab('theoryBasics')">1. Fundamentals</button>
+                    <button class="subnav-btn" onclick="switchTheoryTab('theoryFIFO')">2. FIFO</button>
+                    <button class="subnav-btn" onclick="switchTheoryTab('theoryOptimal')">3. OPT (MIN)</button>
+                    <button class="subnav-btn" onclick="switchTheoryTab('theoryLRU')">4. LRU</button>
+                    <button class="subnav-btn" onclick="switchTheoryTab('theoryClock')">5. Clock</button>
+                    <button class="subnav-btn" onclick="switchTheoryTab('theoryLFU')">6. LFU</button>
+                    <button class="subnav-btn" onclick="switchTheoryTab('theoryARC')">7. ARC</button>
+                    <button class="subnav-btn" onclick="switchTheoryTab('theoryML')">8. ML-Based</button>
+                    <button class="subnav-btn" onclick="switchTheoryTab('theoryMatrix')">9. Comparison Matrix (Table I)</button>
+                    <button class="subnav-btn" onclick="switchTheoryTab('theoryFormulas')">10. Calculations &amp; EAT</button>
+                </nav>
+
+                <!-- Sub-tab 1: Fundamentals -->
+                <div id="theoryBasics" class="theory-subcontent active">
+                    <article class="doc-article">
+                        <h3>1. Virtual Memory &amp; Demand Paging</h3>
+                        <p>
+                            In modern operating systems, virtual memory enables process execution without requiring the entire address space to be contiguous or completely resident in physical RAM.
+                        </p>
+                        <ul>
+                            <li><strong>Pages:</strong> Fixed-size logical blocks of process address space (typically 4 KB).</li>
+                            <li><strong>Page Frames:</strong> Fixed-size physical RAM blocks of identical size to pages.</li>
+                            <li><strong>Page Table:</strong> Translation structure indexed by virtual page number (VPN) containing frame mappings and hardware control flags (valid/invalid bit, dirty bit, reference bit).</li>
+                            <li><strong>Demand Paging:</strong> Pages are loaded into physical frames strictly on demand when referenced by an instruction, rather than preloaded at process startup.</li>
+                        </ul>
+
+                        <div class="note-box">
+                            <h4>Page Hit vs. Page Fault</h4>
+                            <p><strong>Page Hit:</strong> The referenced page is resident in physical RAM (valid bit = 1). The MMU translates the address directly at hardware memory speed (10 &ndash; 100 ns).</p>
+                            <p><strong>Page Fault:</strong> The referenced page is absent from physical RAM (valid bit = 0). The CPU generates a page fault trap to the kernel. The OS locates the page in swap space, identifies a free frame (or evicts an existing page), issues disk I/O, updates the page table, and restarts the faulting instruction (1 &ndash; 10 ms; ~100,000&times; slower).</p>
+                        </div>
+                    </article>
+                </div>
+
+                <!-- Sub-tab 2: FIFO -->
+                <div id="theoryFIFO" class="theory-subcontent">
+                    <article class="doc-article">
+                        <h3>2. First-In, First-Out (FIFO)</h3>
+                        <p>
+                            <strong>Heuristic:</strong> Evicts the resident page that was loaded into memory earliest (the oldest page).
+                        </p>
+                        <h4>Operational Mechanism:</h4>
+                        <ol>
+                            <li>The kernel maintains a queue of frame allocations ordered by arrival time.</li>
+                            <li>When a page fault occurs and an empty frame is available, the page is allocated and enqueued at the tail.</li>
+                            <li>When a page fault occurs and memory is full, the frame at the head of the queue is dequeued, evicted, and replaced. The frame is re-enqueued at the tail with the updated arrival timestamp.</li>
+                            <li>Page hits <em>do not</em> alter queue ordering.</li>
+                        </ol>
+
+                        <div class="alert-banner alert-warning">
+                            <h4>B&eacute;l&aacute;dy's Anomaly</h4>
+                            <p>
+                                FIFO can experience higher page fault counts when physical frame capacity increases.
+                                Because FIFO ignores access recency, frequently accessed working-set pages (e.g., tight loop indices) are evicted simply because they arrived early.
+                            </p>
+                        </div>
+
+                        <div class="comparison-grid-2">
+                            <div class="eval-box">
+                                <h4>Advantages</h4>
+                                <ul>
+                                    <li>Simple logic with minimal state maintenance.</li>
+                                    <li>$\mathcal{O}(1)$ time complexity for hits and evictions.</li>
+                                    <li>Requires zero hardware reference bits or access counters.</li>
+                                </ul>
+                            </div>
+                            <div class="eval-box">
+                                <h4>Disadvantages</h4>
+                                <ul>
+                                    <li>Suboptimal hit ratio in workloads with temporal locality.</li>
+                                    <li>Vulnerable to B&eacute;l&aacute;dy's Anomaly.</li>
+                                    <li>Regularly evicts heavily reused pages.</li>
+                                </ul>
+                            </div>
+                        </div>
+                    </article>
+                </div>
+
+                <!-- Sub-tab 3: LRU -->
+                <div id="theoryLRU" class="theory-subcontent">
+                    <article class="doc-article">
+                        <h3>3. Least Recently Used (LRU)</h3>
+                        <p>
+                            <strong>Heuristic:</strong> Evicts the resident page that has not been accessed for the longest duration in the past.
+                        </p>
+                        <h4>Principle of Temporal Locality:</h4>
+                        <p>
+                            LRU approximates future behavior using the immediate past: memory referenced recently is statistically likely to be referenced again soon.
+                        </p>
+
+                        <h4>Stack Algorithm Invariant:</h4>
+                        <p>
+                            LRU is a mathematically proven <strong>Stack Algorithm</strong>, meaning it satisfies the subset inclusion property:
+                        </p>
+                        <div class="formula-display">$$M_t(m) \subseteq M_t(m+1)$$</div>
+                        <p>
+                            The set of pages resident under $m$ frames at step $t$ is always a subset of the pages resident under $m+1$ frames. Consequently, LRU is <strong>immune to B&eacute;l&aacute;dy's Anomaly</strong>; increasing frames can never increase faults.
+                        </p>
+
+                        <h4>Implementation Approaches:</h4>
+                        <ul>
+                            <li><strong>Hardware Counter / Logical Clock:</strong> CPU increments a register on every memory access. Page table entry stores the time-of-use. On eviction, the OS searches for the minimum timestamp ($\mathcal{O}(m)$ overhead).</li>
+                            <li><strong>Doubly-Linked List:</strong> Referenced pages are detached and spliced to the stack top. The bottom is always the LRU candidate ($\mathcal{O}(1)$ eviction, but pointer updates on every memory access).</li>
+                            <li><strong>Operating System Approximations:</strong> True LRU incurs excessive hardware overhead. Production kernels (Linux, Windows) approximate LRU using 1-bit hardware reference flags (e.g., the <em>Clock / Second-Chance</em> algorithm).</li>
+                        </ul>
+
+                        <div class="comparison-grid-2">
+                            <div class="eval-box">
+                                <h4>Advantages</h4>
+                                <ul>
+                                    <li>High hit ratio reflecting empirical program access locality.</li>
+                                    <li>Mathematically immune to B&eacute;l&aacute;dy's Anomaly.</li>
+                                    <li>Serves as the foundation for practical OS page reclamation.</li>
+                                </ul>
+                            </div>
+                            <div class="eval-box">
+                                <h4>Disadvantages</h4>
+                                <ul>
+                                    <li>High hardware overhead in pure form on every instruction.</li>
+                                    <li>Requires OS approximations for acceptable throughput.</li>
+                                </ul>
+                            </div>
+                        </div>
+                    </article>
+                </div>
+
+                <!-- Sub-tab 4: Optimal -->
+                <div id="theoryOptimal" class="theory-subcontent">
+                    <article class="doc-article">
+                        <h3>4. Optimal Page Replacement (OPT / B&eacute;l&aacute;dy's MIN)</h3>
+                        <p>
+                            <strong>Heuristic:</strong> Evicts the resident page whose next reference occurs furthest in the future (or is never referenced again).
+                        </p>
+                        <h4>Proof of Optimality:</h4>
+                        <p>
+                            Formulated by L&aacute;szl&oacute; B&eacute;l&aacute;dy in 1966, this policy provably guarantees the <strong>minimum possible page fault count</strong> for any fixed frame allocation. By retaining pages needed earliest, it maximizes hit probability across all future steps.
+                        </p>
+
+                        <div class="note-box">
+                            <h4>Implementation Constraint</h4>
+                            <p>
+                                <strong>Unrealizable in Online Systems:</strong> Optimal requires complete future knowledge of memory references, which cannot be known in general-purpose computing due to data-dependent branching, user input, and asynchronous I/O.
+                            </p>
+                            <p>
+                                <strong>Benchmark Role:</strong> Optimal serves as the theoretical gold standard. Practical heuristics (LRU, Clock, ARC) are evaluated by measuring how closely their fault counts approach Optimal.
+                            </p>
+                        </div>
+
+                        <div class="comparison-grid-2">
+                            <div class="eval-box">
+                                <h4>Advantages</h4>
+                                <ul>
+                                    <li>Guaranteed absolute minimum page faults.</li>
+                                    <li>Immune to B&eacute;l&aacute;dy's Anomaly (Stack Algorithm).</li>
+                                    <li>Standard comparative benchmark in systems research.</li>
+                                </ul>
+                            </div>
+                            <div class="eval-box">
+                                <h4>Disadvantages</h4>
+                                <ul>
+                                    <li>Impossible to implement in online operating systems.</li>
+                                    <li>Requires offline trace analysis.</li>
+                                </ul>
+                            </div>
+                        </div>
+                    </article>
+                </div>
+
+                <!-- Sub-tab 5: Clock (Second-Chance) -->
+                <div id="theoryClock" class="theory-subcontent">
+                    <article class="doc-article">
+                        <h3>5. Clock (Second-Chance) Algorithm</h3>
+                        <p>
+                            <strong>Core Principle:</strong> Approximates LRU with a reference bit and circular buffer.
+                        </p>
+                        <h4>Operational Mechanism:</h4>
+                        <ol>
+                            <li>Physical page frames are arranged conceptually in a circular buffer (clock face) with a traversing pointer (clock hand).</li>
+                            <li>Each resident frame possesses a hardware-assisted 1-bit <strong>reference flag (use bit)</strong>.</li>
+                            <li><strong>Page Hit:</strong> The reference bit of the resident frame is set to <code>1</code>. The clock hand does not advance.</li>
+                            <li><strong>Page Fault:</strong> The clock hand inspects the current candidate frame:
+                                <ul>
+                                    <li>If the reference bit is <code>1</code>: The page is granted a "second chance"; its bit is cleared to <code>0</code>, and the hand advances to the next frame.</li>
+                                    <li>If the reference bit is <code>0</code>: The page is selected as the victim, evicted, the new page is loaded with bit set to <code>1</code>, and the hand advances to <code>(hand + 1) % N</code>.</li>
+                                </ul>
+                            </li>
+                        </ol>
+
+                        <div class="comparison-grid-2">
+                            <div class="eval-box">
+                                <h4>Advantages</h4>
+                                <ul>
+                                    <li>Extremely low overhead: $\mathcal{O}(1)$ amortized eviction time.</li>
+                                    <li>Requires only 1 hardware reference bit per frame.</li>
+                                    <li>Standard replacement heuristic in Linux and Windows kernels.</li>
+                                </ul>
+                            </div>
+                            <div class="eval-box">
+                                <h4>Disadvantages</h4>
+                                <ul>
+                                    <li>Degrades toward FIFO if all pages have their reference bits continuously set to 1.</li>
+                                    <li>Only a coarse approximation of true temporal recency.</li>
+                                </ul>
+                            </div>
+                        </div>
+                    </article>
+                </div>
+
+                <!-- Sub-tab 6: LFU -->
+                <div id="theoryLFU" class="theory-subcontent">
+                    <article class="doc-article">
+                        <h3>6. Least Frequently Used (LFU)</h3>
+                        <p>
+                            <strong>Core Principle:</strong> Evicts the least frequently used page.
+                        </p>
+                        <h4>Operational Mechanism:</h4>
+                        <ol>
+                            <li>A reference counter is associated with each page, incremented on every memory reference.</li>
+                            <li>On page fault when frames are full, the resident page with the lowest access count is evicted.</li>
+                            <li>Ties are resolved via FIFO arrival order (earliest resident timestamp).</li>
+                        </ol>
+
+                        <div class="note-box">
+                            <h4>Cache Pollution / Aging Challenge:</h4>
+                            <p>
+                                A page heavily referenced during program initialization builds up a massive frequency counter. Even if it is never accessed again, LFU retains it in memory indefinitely ("frequency pollution"), causing poor adaptability unless periodic counter aging or decay is introduced.
+                            </p>
+                        </div>
+
+                        <div class="comparison-grid-2">
+                            <div class="eval-box">
+                                <h4>Advantages</h4>
+                                <ul>
+                                    <li>Protects high-utility, frequently accessed data structures.</li>
+                                    <li>Excels in workloads with stable, long-term popularity distributions.</li>
+                                </ul>
+                            </div>
+                            <div class="eval-box">
+                                <h4>Disadvantages</h4>
+                                <ul>
+                                    <li>Moderate to High overhead: requires counter storage and lookup.</li>
+                                    <li>Poor adaptability: slow to respond to phase shifts or working set transitions.</li>
+                                </ul>
+                            </div>
+                        </div>
+                    </article>
+                </div>
+
+                <!-- Sub-tab 7: ARC -->
+                <div id="theoryARC" class="theory-subcontent">
+                    <article class="doc-article">
+                        <h3>7. Adaptive Replacement Cache (ARC - Megiddo &amp; Modha)</h3>
+                        <p>
+                            <strong>Core Principle:</strong> Dynamically balances between recency (LRU) and frequency (LFU).
+                        </p>
+                        <h4>Operational Mechanism:</h4>
+                        <ol>
+                            <li>Maintains two LRU lists: $L_1$ (pages accessed once recently) and $L_2$ (pages accessed at least twice).</li>
+                            <li>Each list is partitioned into:
+                                <ul>
+                                    <li><strong>Resident Cache:</strong> $T_1$ (recency) and $T_2$ (frequency) occupying physical frames ($|T_1| + |T_2| \le c$).</li>
+                                    <li><strong>Ghost / History Cache:</strong> $B_1$ and $B_2$ tracking metadata/page IDs of recently evicted pages without holding data.</li>
+                                </ul>
+                            </li>
+                            <li>An adaptive target parameter $p \in [0, c]$ dynamically tunes the target size of $T_1$:
+                                <ul>
+                                    <li>Hit in ghost $B_1$: Cache requires more recency capacity &rarr; $p \leftarrow \min(c, p + \max(1, |B_2|/|B_1|))$.</li>
+                                    <li>Hit in ghost $B_2$: Cache requires more frequency capacity &rarr; $p \leftarrow \max(0, p - \max(1, |B_1|/|B_2|))$.</li>
+                                </ul>
+                            </li>
+                        </ol>
+
+                        <div class="comparison-grid-2">
+                            <div class="eval-box">
+                                <h4>Advantages</h4>
+                                <ul>
+                                    <li>Self-tuning: zero manual threshold configuration required.</li>
+                                    <li>Empirically matches or outperforms LRU and LFU across virtually all real-world traces.</li>
+                                    <li>Immune to scan pollution (single sequential pass does not displace frequent pages).</li>
+                                </ul>
+                            </div>
+                            <div class="eval-box">
+                                <h4>Disadvantages</h4>
+                                <ul>
+                                    <li>High complexity: requires maintaining four doubly-linked list structures and ghost metadata.</li>
+                                    <li>Patented by IBM (US Patent 6996676, expired 2021).</li>
+                                </ul>
+                            </div>
+                        </div>
+                    </article>
+                </div>
+
+                <!-- Sub-tab 8: ML-Based -->
+                <div id="theoryML" class="theory-subcontent">
+                    <article class="doc-article">
+                        <h3>8. Machine Learning-Based Page Replacement (Learned Caching)</h3>
+                        <p>
+                            <strong>Core Principle:</strong> Predicts future accesses using a trained model.
+                        </p>
+                        <h4>Operational Mechanism:</h4>
+                        <ol>
+                            <li>Online model extracts multi-dimensional feature embeddings for each resident page:
+                                <ul>
+                                    <li><strong>Recency Distance:</strong> Steps elapsed since last reference ($t - \text{last}(p)$).</li>
+                                    <li><strong>Reference Frequency:</strong> Access count and historical density.</li>
+                                    <li><strong>Markov Transition Probabilities:</strong> $P(\text{candidate} \mid \text{current})$ derived from page-to-page sequence transitions.</li>
+                                </ul>
+                            </li>
+                            <li>The model computes an estimated reuse distance / eviction risk score:
+                                <div class="formula-display">
+                                    $$\hat{D}(p) = w_r \cdot \text{Recency}(p) + w_f \cdot \left(\frac{1}{1 + \text{Freq}(p)}\right) + w_t \cdot \left(1 - P_{\text{transition}}\right)$$
+                                </div>
+                            </li>
+                            <li>On page fault when frames are full, the page with the highest predicted reuse score (furthest in the future) is chosen as the victim, mimicking B&eacute;l&aacute;dy's Optimal heuristic without clairvoyance.</li>
+                        </ol>
+
+                        <div class="comparison-grid-2">
+                            <div class="eval-box">
+                                <h4>Advantages</h4>
+                                <ul>
+                                    <li>Excellent adaptability: learns non-obvious, complex, multi-modal access patterns.</li>
+                                    <li>Bridges the gap between practical heuristics and theoretical Optimal (MIN).</li>
+                                    <li>Pioneered by Google Hawkeye, Glider, and modern neural cache research.</li>
+                                </ul>
+                            </div>
+                            <div class="eval-box">
+                                <h4>Disadvantages</h4>
+                                <ul>
+                                    <li>Very High overhead: feature extraction, inference compute, and model training cycles.</li>
+                                    <li>Requires hardware inference accelerators or lightweight online approximations for line-rate execution.</li>
+                                </ul>
+                            </div>
+                        </div>
+                    </article>
+                </div>
+
+                <!-- Sub-tab 9: Comparison Matrix (TABLE I) -->
+                <div id="theoryMatrix" class="theory-subcontent">
+                    <article class="doc-article">
+                        <h3>9. Comparison of Methodologies &bull; TABLE I</h3>
+                        <p class="section-lead">
+                            Systematic comparative evaluation across Core Principle, Complexity/Overhead, Adaptability, B&eacute;l&aacute;dy's Anomaly susceptibility, and Ideal Workload.
+                        </p>
+                        
+                        <div class="table-scroll-container">
+                            <table class="data-table">
+                                <thead>
+                                    <tr>
+                                        <th style="width: 110px;">Algorithm</th>
+                                        <th>Core Principle</th>
+                                        <th style="width: 170px;">Complexity / Overhead</th>
+                                        <th style="width: 120px;">Adaptability</th>
+                                        <th style="width: 150px;">Susceptible to Belady's Anomaly?</th>
+                                        <th>Ideal Workload</th>
+                                    </tr>
+                                </thead>
+                                <tbody>
+                                    <tr>
+                                        <td><strong>FIFO</strong></td>
+                                        <td>Evicts the oldest page.</td>
+                                        <td><span class="badge-pill badge-pill-low">Very Low</span></td>
+                                        <td>None</td>
+                                        <td><span class="badge-anomaly-yes">&#10006; Yes</span></td>
+                                        <td>Simple, sequential access patterns.</td>
+                                    </tr>
+                                    <tr class="row-highlight">
+                                        <td><strong>OPT</strong></td>
+                                        <td>Evicts the page unused for the longest future time.</td>
+                                        <td><span class="badge-pill badge-pill-na">N/A (Theoretical)</span></td>
+                                        <td>Perfect (Theoretical)</td>
+                                        <td><span class="badge-anomaly-no">&#10004; No</span></td>
+                                        <td>Benchmark for all workloads.</td>
+                                    </tr>
+                                    <tr>
+                                        <td><strong>LRU</strong></td>
+                                        <td>Evicts the least recently used page.</td>
+                                        <td><span class="badge-pill badge-pill-high">High (Requires updates on every access)</span></td>
+                                        <td>Good</td>
+                                        <td><span class="badge-anomaly-no">&#10004; No</span></td>
+                                        <td>Workloads with good temporal locality.</td>
+                                    </tr>
+                                    <tr>
+                                        <td><strong>Clock</strong></td>
+                                        <td>Approximates LRU with a reference bit and circular buffer.</td>
+                                        <td><span class="badge-pill badge-pill-low">Low</span></td>
+                                        <td>Moderate</td>
+                                        <td><span class="badge-anomaly-no">&#10004; No</span></td>
+                                        <td>General-purpose workloads.</td>
+                                    </tr>
+                                    <tr>
+                                        <td><strong>LFU</strong></td>
+                                        <td>Evicts the least frequently used page.</td>
+                                        <td><span class="badge-pill badge-pill-mid">Moderate to High (Requires counters)</span></td>
+                                        <td>Poor (Slow to adapt)</td>
+                                        <td><span class="badge-anomaly-no">&#10004; No</span></td>
+                                        <td>Workloads with stable, long-term popularity.</td>
+                                    </tr>
+                                    <tr>
+                                        <td><strong>ARC</strong></td>
+                                        <td>Dynamically balances between recency (LRU) and frequency (LFU).</td>
+                                        <td><span class="badge-pill badge-pill-high">High</span></td>
+                                        <td>Very High</td>
+                                        <td><span class="badge-anomaly-no">&#10004; No</span></td>
+                                        <td>Mixed or dynamically changing workloads.</td>
+                                    </tr>
+                                    <tr>
+                                        <td><strong>ML-Based</strong></td>
+                                        <td>Predicts future accesses using a trained model.</td>
+                                        <td><span class="badge-pill badge-pill-high">Very High (Training and inference)</span></td>
+                                        <td>Excellent (Can learn complex patterns)</td>
+                                        <td><span class="badge-anomaly-no">&#10004; No</span></td>
+                                        <td>Complex, non-obvious access patterns.</td>
+                                    </tr>
+                                </tbody>
+                            </table>
+                        </div>
+                    </article>
+                </div>
+
+                <!-- Sub-tab 10: Calculations & EAT -->
+                <div id="theoryFormulas" class="theory-subcontent">
+                    <article class="doc-article">
+                        <h3>10. Performance Calculations &amp; Effective Access Time</h3>
+                        
+                        <div class="calc-block">
+                            <h4>Hit Ratio ($HR$) and Fault Ratio ($FR$)</h4>
+                            <div class="formula-display">
+                                $$HR = \left(\frac{\text{Hits}}{N}\right) \times 100\% \qquad FR = \left(\frac{\text{Faults}}{N}\right) \times 100\% = 100\% - HR$$
+                            </div>
+                            <ul class="math-param-list">
+                                <li><span class="param-badge">Hits</span> Total count of page references already resident in physical memory frames.</li>
+                                <li><span class="param-badge">Faults</span> Total count of page references that triggered a page fault.</li>
+                                <li><span class="param-badge">N</span> Total length of the reference sequence ($N = \text{Hits} + \text{Faults}$).</li>
+                            </ul>
+                        </div>
+
+                        <div class="calc-block" style="margin-top: 20px;">
+                            <h4>Effective Access Time (EAT)</h4>
+                            <div class="formula-display">
+                                $$\text{EAT} = (1 - p) \times T_{\text{mem}} + p \times T_{\text{fault}}$$
+                            </div>
+                            <ul class="math-param-list">
+                                <li><span class="param-badge">p</span> Page fault probability ($0 \le p \le 1$; fault ratio expressed as a decimal).</li>
+                                <li><span class="param-badge">T_mem</span> Physical RAM access latency (typically $\sim 100\text{ ns}$).</li>
+                                <li><span class="param-badge">T_fault</span> Total page fault service penalty (disk I/O, interrupt handling, OS context switch; $\sim 8\text{ ms} = 8,000,000\text{ ns}$).</li>
+                            </ul>
+                            
+                            <div class="note-box" style="margin-top: 15px;">
+                                <strong>Numerical Example:</strong><br>
+                                Given $T_{\text{mem}} = 100\text{ ns}$, $T_{\text{fault}} = 8\text{ ms}$ ($8,000,000\text{ ns}$), and a fault probability of $p = 0.1\%$ ($0.001$):<br>
+                                <div class="formula-display">
+                                    $$\text{EAT} = (1 - 0.001) \times 100\text{ ns} + 0.001 \times 8,000,000\text{ ns} = 99.9\text{ ns} + 8,000\text{ ns} = 8,099.9\text{ ns} \approx 8.1\text{ }\mu\text{s}$$
+                                </div>
+                                <div class="formula-display">
+                                    $$\text{Access Slowdown Multiplier} = \frac{\text{EAT}}{T_{\text{mem}}} = \frac{8,099.9\text{ ns}}{100\text{ ns}} \approx 81\times$$
+                                </div>
+                                A mere $0.1\%$ fault rate degrades memory access time by over $80\times$, underscoring why replacement policy efficiency is so critical.
+                            </div>
+                        </div>
+
+                        <!-- Interactive EAT Calculator Widget -->
+                        <div class="eat-calc-container">
+                            <div class="eat-calc-header">
+                                <h4>Interactive Effective Access Time (EAT) Calculator</h4>
+                                <button class="btn btn-sm btn-secondary" onclick="syncSimulationToEAT()">Sync with Current Simulation Fault Rate</button>
+                            </div>
+                            <div class="eat-calc-grid">
+                                <div class="eat-calc-field">
+                                    <label for="eatProbInput">Fault Probability (p):</label>
+                                    <div class="input-unit-wrap">
+                                        <input type="number" id="eatProbInput" value="0.001" min="0" max="1" step="0.0001">
+                                        <span class="unit-tag">decimal (e.g. 0.001)</span>
+                                    </div>
+                                </div>
+                                <div class="eat-calc-field">
+                                    <label for="eatTMemInput">RAM Access Time (T_mem):</label>
+                                    <div class="input-unit-wrap">
+                                        <input type="number" id="eatTMemInput" value="100" min="1" max="10000" step="5">
+                                        <span class="unit-tag">ns</span>
+                                    </div>
+                                </div>
+                                <div class="eat-calc-field">
+                                    <label for="eatTFaultInput">Fault Service Time (T_fault):</label>
+                                    <div class="input-unit-wrap">
+                                        <input type="number" id="eatTFaultInput" value="8" min="0.1" max="100" step="0.5">
+                                        <span class="unit-tag">ms</span>
+                                    </div>
+                                </div>
+                            </div>
+
+                            <div class="eat-output-cards">
+                                <div class="eat-metric-card card-accent">
+                                    <span class="card-label">Effective Access Time</span>
+                                    <span class="card-value" id="eatResultNs">8,099.9 ns</span>
+                                </div>
+                                <div class="eat-metric-card">
+                                    <span class="card-label">Latency in Microseconds</span>
+                                    <span class="card-value" id="eatResultUs">8.10 µs</span>
+                                </div>
+                                <div class="eat-metric-card card-fault">
+                                    <span class="card-label">Slowdown vs Raw RAM</span>
+                                    <span class="card-value" id="eatSlowdownVal">81.0×</span>
+                                </div>
+                            </div>
+
+                            <div class="eat-bar-container">
+                                <span class="card-label">Latency Contribution Breakdown:</span>
+                                <div class="eat-breakdown-bar">
+                                    <div class="bar-ram" id="eatBarHit" style="width: 1.2%;" title="RAM hit contribution"></div>
+                                    <div class="bar-fault" id="eatBarFault" style="width: 98.8%;" title="Fault service contribution"></div>
+                                </div>
+                                <div class="eat-breakdown-legend">
+                                    <span>RAM Hit Component: <strong id="eatHitPart">99.9 ns</strong></span>
+                                    <span>Fault Service Penalty: <strong id="eatFaultPart">8,000 ns</strong></span>
+                                </div>
+                            </div>
+                        </div>
+                    </article>
+                </div>
+            </section>
+        </main>
+
+        <!-- Compact Technical Footer -->
+        <footer class="app-footer">
+            <span>Page Replacement Algorithm Simulator &bull; Computer Science &amp; Engineering &bull; Operating Systems Lab</span>
+        </footer>
+    </div>
+
+    <!-- Scripts -->
+    <script src="js/page-replacement.js"></script>
+    <script src="js/app.js"></script>
+</body>
+</html>
