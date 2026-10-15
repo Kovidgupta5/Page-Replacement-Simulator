@@ -265,7 +265,7 @@ No install, no build. Double-click **`index.html`** and it runs in any modern br
 
 ### 🌐 Option 2 — Deployed server
 
-open 👉 **https://page-replacement-simulator-nu.vercel.app/**]
+open 👉 [https://page-replacement-simulator-nu.vercel.app/]
 
 ---
 
