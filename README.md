@@ -263,17 +263,9 @@ cpu-scheduling-simulator-main/
 
 No install, no build. Double-click **`index.html`** and it runs in any modern browser (Chrome, Firefox, Edge, Safari).
 
-### 🌐 Option 2 — Local server
+### 🌐 Option 2 — Deployed server
 
-```bash
-# Node.js
-npx -y serve . -p 3000
-
-# or Python 3
-python -m http.server 3000
-```
-
-Then open 👉 **http://localhost:3000**
+open 👉 **https://page-replacement-simulator-nu.vercel.app/**]
 
 ---
 
